@@ -1,1 +1,6 @@
+<<<<<<< HEAD
+This is a fresh Start.
+=======
 HAHA I DELETED NILANKAS LINES!!! HAHA
+I AM ADDING A BRAND NEW LINE!
+>>>>>>> origin/week1
