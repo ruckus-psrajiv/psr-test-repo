@@ -1,0 +1,55 @@
+public without sharing class EntitlementDateChangeRequestController {
+  public Entitlement mEntitlement {get; set;}
+  public ServiceContract mServiceContract {get;set;}
+
+  public EntitlementDateChangeRequestController() {
+    String lStrID = ApexPages.currentPage().getParameters().get('id');
+    mEntitlement = [Select Id, StartDate, EndDate, New_Start_Date__c, New_End_Date__c, Is_In_Date_Change_Approval__c, Date_Change_Reason__c, Requester_s_Comment__c FROM Entitlement WHERE Id=:lStrID];
+
+    if(mEntitlement.Is_In_Date_Change_Approval__c == false) {
+      mEntitlement.New_Start_Date__c = mEntitlement.StartDate;
+      mEntitlement.New_End_Date__c = mEntitlement.EndDate;
+      mEntitlement.Date_Change_Reason__c = mEntitlement.Date_Change_Reason__c;
+      mEntitlement.Requester_s_Comment__c = mEntitlement.Requester_s_Comment__c;
+    }
+    else {
+      ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'A change request is already pending approval on this Entitlement. Please retry after that is complete.'));
+    }
+  }
+
+  public PageReference cancel() {
+    return new PageReference('/' + mEntitlement.id);
+  }
+
+  public PageReference submitRequestForApproval() {
+    if(mEntitlement.StartDate == mEntitlement.New_Start_Date__c && mEntitlement.EndDate == mEntitlement.New_End_Date__c) {
+      ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'Submission failed. Requested Dates are same as the current Start and End dates on this Entitlement.'));
+      return null;
+    }
+    
+    if(mEntitlement.New_Start_Date__c > mEntitlement.New_End_Date__c) {
+      ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, 'New Start Date has to be a date before New End Date.'));
+      return null;
+    }
+    
+    Savepoint lSavepoint = Database.setSavepoint();
+    
+    try {
+      mEntitlement.Is_In_Date_Change_Approval__c = true;
+      update mEntitlement;
+
+      Approval.ProcessSubmitRequest lRequest = new Approval.ProcessSubmitRequest();
+      lRequest.setComments('Submitting entitlement date change request for approval.');
+      lRequest.setObjectId(mEntitlement.id);
+      lRequest.setSubmitterId(UserInfo.getUserId() ); 
+      lRequest.setProcessDefinitionNameOrId('Entitlement_Dates_Changes_Approval');
+      Approval.ProcessResult result = Approval.process(lRequest);
+    }
+    catch(Exception e) {
+      Database.rollback(lSavepoint);
+      ApexPages.addMessages(e);
+    }
+    
+    return new PageReference('/' + mEntitlement.id);
+  }
+}
